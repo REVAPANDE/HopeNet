@@ -1,0 +1,12 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - gcr.io/$PROJECT_ID/$_IMAGE_NAME
+      - --build-arg
+      - VITE_API_BASE=$_VITE_API_BASE
+      - .
+images:
+  - gcr.io/$PROJECT_ID/$_IMAGE_NAME
+

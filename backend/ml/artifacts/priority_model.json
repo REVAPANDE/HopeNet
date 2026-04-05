@@ -1,0 +1,17 @@
+{
+  "intercept": 13.646121,
+  "feature_weights": {
+    "people_affected": 0.205002,
+    "severity": 10.770151,
+    "deadline_minutes": -0.560372
+  },
+  "task_type_weights": {
+    "medical": -3.936281,
+    "evacuation": -7.031835,
+    "shelter": -2.285228,
+    "food": 5.676481,
+    "transport": 9.770486,
+    "__default__": 0.0
+  },
+  "training_rows": 27
+}
