@@ -19,7 +19,7 @@ import { MetricsPanel } from "./MetricsPanel";
 import { AssignmentFeed } from "./AssignmentFeed";
 import { SimulationPanel } from "./SimulationPanel";
 import { ExplainabilityPanel } from "./ExplainabilityPanel";
-import type { PriorityWeights } from "../../types";
+import type { AllocationResponse, PriorityWeights } from "../../types";
 
 const MapView = lazy(() => import("./MapView").then((module) => ({ default: module.MapView })));
 
@@ -51,14 +51,15 @@ export function Dashboard() {
   const [demandMultiplier, setDemandMultiplier] = useState(2.5);
   const [targetArea, setTargetArea] = useState("East Zone");
   const [activeAssignment, setActiveAssignment] = useState<{ volunteerId: string; taskId: string } | null>(null);
-  const [showWeightsEditor, setShowWeightsEditor] = useState(false);
+  const [showWeightsEditor, setShowWeightsEditor] = useState(true);
+  const [actionFeedback, setActionFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [draftWeights, setDraftWeights] = useState<PriorityWeights>(
     store.priorityConfig?.weights ?? {
-      skill_match: 0.35,
-      distance: 0.2,
-      priority: 0.25,
-      availability: 0.15,
-      workload_penalty: 0.15
+      skill_match: 0.2,
+      distance: 0.4,
+      priority: 0.3,
+      availability: 0.2,
+      workload_penalty: 0.1
     }
   );
 
@@ -96,9 +97,55 @@ export function Dashboard() {
   }
 
   async function onApplyWeights() {
-    await updatePriorityMutation.mutateAsync(draftWeights);
-    setShowWeightsEditor(false);
+    const previousAllocation = store.allocations;
+    try {
+      const result = await updatePriorityMutation.mutateAsync(draftWeights);
+      const moved = countAssignmentChanges(previousAllocation, result.allocation);
+      setActionFeedback({
+        tone: "success",
+        message: moved > 0
+          ? `Priority update recomputed allocations with ${moved} reassigned task${moved === 1 ? "" : "s"}.`
+          : "Priority update completed. Scores refreshed with current field state."
+      });
+    } catch {
+      setActionFeedback({ tone: "error", message: "Priority update failed. Check backend/API connectivity." });
+    }
   }
+
+  async function onRecompute() {
+    const previousAllocation = store.allocations;
+    try {
+      const allocation = await recomputeMutation.mutateAsync();
+      const moved = countAssignmentChanges(previousAllocation, allocation);
+      setActionFeedback({
+        tone: "success",
+        message: moved > 0
+          ? `Recompute complete with ${moved} assignment shift${moved === 1 ? "" : "s"}.`
+          : "Recompute completed with no reassignment needed; system remains optimal."
+      });
+    } catch {
+      setActionFeedback({ tone: "error", message: "Recompute failed. Please retry and inspect API logs." });
+    }
+  }
+
+  function countAssignmentChanges(previous: AllocationResponse | null, next: AllocationResponse | null) {
+    if (!previous || !next) return 0;
+    const previousByTask = new Map(previous.assignments.map((assignment) => [assignment.task_id, assignment.volunteer_id]));
+    let moved = 0;
+    for (const assignment of next.assignments) {
+      const prevVolunteer = previousByTask.get(assignment.task_id);
+      if (prevVolunteer && prevVolunteer !== assignment.volunteer_id) {
+        moved += 1;
+      }
+    }
+    return moved;
+  }
+
+  useEffect(() => {
+    if (!actionFeedback) return;
+    const timer = window.setTimeout(() => setActionFeedback(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [actionFeedback]);
 
   if (dashboardQuery.isLoading && !store.allocations) {
     return <DashboardSkeleton />;
@@ -129,7 +176,8 @@ export function Dashboard() {
           <div className="topbar-actions">
             <motion.button
               className="compact-action"
-              onClick={() => void recomputeMutation.mutateAsync()}
+              onClick={() => void onRecompute()}
+              disabled={recomputeMutation.isPending}
               whileHover={{ y: -1, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               transition={{ duration: 0.2, ease: "easeInOut" }}
@@ -139,19 +187,37 @@ export function Dashboard() {
             </motion.button>
             <motion.button
               className="compact-action secondary"
+              onClick={() => void onApplyWeights()}
+              disabled={updatePriorityMutation.isPending}
+              whileHover={{ y: -1, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+            >
+              {updatePriorityMutation.isPending ? <span className="mini-spinner" /> : <Zap size={14} />}
+              Update Priorities
+            </motion.button>
+            <motion.button
+              className="compact-action tertiary"
               onClick={() => setShowWeightsEditor((value) => !value)}
               whileHover={{ y: -1, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               transition={{ duration: 0.2, ease: "easeInOut" }}
             >
-              {updatePriorityMutation.isPending ? <span className="mini-spinner" /> : showWeightsEditor ? <X size={14} /> : <SlidersHorizontal size={14} />}
-              Update Priorities
+              {showWeightsEditor ? <X size={14} /> : <SlidersHorizontal size={14} />}
+              {showWeightsEditor ? "Hide Weights" : "Tune Weights"}
             </motion.button>
           </div>
         </div>
       </header>
 
       <main className="shell clean-shell">
+        {actionFeedback ? (
+          <section className={`action-feedback ${actionFeedback.tone}`}>
+            <strong>{actionFeedback.tone === "success" ? "Action successful" : "Action failed"}</strong>
+            <span>{actionFeedback.message}</span>
+          </section>
+        ) : null}
+
         {showWeightsEditor ? (
           <section className="panel weight-editor" id="overview">
             <div className="section-header">

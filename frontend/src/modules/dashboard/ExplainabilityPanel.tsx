@@ -83,10 +83,20 @@ export function ExplainabilityPanel(props: {
                 <strong>Why not others?</strong>
                 {props.detail.alternatives.map((alternative) => (
                   <div key={alternative.volunteer_id} className="alternative-item">
-                    <span>{alternative.volunteer_name}</span>
+                    <span>
+                      {alternative.volunteer_name}
+                      {` | score ${alternative.final_score.toFixed(2)} | ${alternative.distance_km.toFixed(1)} km | workload ${alternative.workload_penalty.toFixed(2)}`}
+                    </span>
                     <p>{alternative.reason_not_selected}</p>
                   </div>
                 ))}
+              </div>
+            ) : null}
+
+            {props.detail?.narrative ? (
+              <div className="alternatives-panel">
+                <strong>Narrative</strong>
+                <p>{props.detail.narrative}</p>
               </div>
             ) : null}
           </motion.div>

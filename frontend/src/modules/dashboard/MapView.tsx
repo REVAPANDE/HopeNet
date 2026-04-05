@@ -66,6 +66,12 @@ function zoneTone(task: Task) {
   return { color: "#EAB308", fillOpacity: 0.1, label: "Moderate" };
 }
 
+function demandIntensity(task: Task) {
+  const priorityWeight = Math.min(1, task.priority_score / 100);
+  const impactWeight = Math.min(1, task.people_affected / 220);
+  return Math.min(1, priorityWeight * 0.65 + impactWeight * 0.35);
+}
+
 export function MapView(props: {
   tasks: Task[];
   volunteers: Volunteer[];
@@ -75,6 +81,9 @@ export function MapView(props: {
 }) {
   const taskMap = new Map(props.tasks.map((task) => [task.id, task]));
   const volunteerMap = new Map(props.volunteers.map((volunteer) => [volunteer.id, volunteer]));
+  const reasonMap = new Map(
+    props.allocation.reasons.map((reason) => [`${reason.volunteer_id}:${reason.task_id}`, reason])
+  );
 
   return (
     <section className="map-surface">
@@ -107,9 +116,20 @@ export function MapView(props: {
 
         {props.tasks.map((task) => {
           const tone = zoneTone(task);
+          const intensity = demandIntensity(task);
           const isHighlighted = props.highlightedArea?.toLowerCase() === task.area.toLowerCase();
           return (
             <Fragment key={task.id}>
+              <Circle
+                center={[task.location.lat, task.location.lng]}
+                radius={Math.max(420, task.people_affected * 18)}
+                pathOptions={{
+                  stroke: false,
+                  fillColor: tone.color,
+                  fillOpacity: isHighlighted ? 0.1 + intensity * 0.16 : 0.05 + intensity * 0.12,
+                  className: "demand-heat-layer"
+                }}
+              />
               <Circle
                 center={[task.location.lat, task.location.lng]}
                 radius={Math.max(280, task.people_affected * 10)}
@@ -121,7 +141,7 @@ export function MapView(props: {
                 }}
               >
                 <Tooltip direction="top" opacity={0.95}>
-                  {`${task.title} | ${task.area} | ${tone.label}`}
+                  {`${task.title} | ${task.area} | ${tone.label} | Demand ${(intensity * 100).toFixed(0)}%`}
                 </Tooltip>
               </Circle>
               <Marker position={[task.location.lat, task.location.lng]} icon={taskIcon}>
@@ -143,6 +163,7 @@ export function MapView(props: {
         {props.allocation.assignments.map((assignment) => {
           const task = taskMap.get(assignment.task_id);
           const volunteer = volunteerMap.get(assignment.volunteer_id);
+          const reason = reasonMap.get(`${assignment.volunteer_id}:${assignment.task_id}`);
           if (!task || !volunteer) return null;
           return (
             <Polyline
@@ -155,11 +176,12 @@ export function MapView(props: {
                 color: "#0F766E",
                 weight: 2,
                 opacity: 0.75,
-                dashArray: props.isSimulated ? "8 8" : undefined
+                dashArray: props.isSimulated ? "8 8" : "10 7",
+                className: props.isSimulated ? "assignment-route simulated-route" : "assignment-route live-route"
               }}
             >
               <Tooltip sticky opacity={0.95}>
-                {`${volunteer.name} -> ${task.title}`}
+                {`${volunteer.name} -> ${task.title} | Score ${(reason?.final_score ?? assignment.score).toFixed(2)} | ${(reason?.distance_km ?? 0).toFixed(1)} km | Confidence ${Math.round((reason?.confidence ?? 0) * 100)}%`}
               </Tooltip>
             </Polyline>
           );
@@ -174,6 +196,7 @@ export function MapView(props: {
         <span><i className="legend-swatch critical" /> Critical demand</span>
         <span><i className="legend-swatch high" /> High demand</span>
         <span><i className="legend-swatch moderate" /> Moderate demand</span>
+        <span><i className="legend-swatch heat" /> Demand heat</span>
         <span><i className="legend-swatch route" /> Assignment route</span>
       </div>
     </section>

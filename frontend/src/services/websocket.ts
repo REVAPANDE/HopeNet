@@ -1,23 +1,24 @@
-import type { SystemEvent } from "../types";
+import type { SystemEventRecord } from "../types";
 
-type Listener = (event: SystemEvent) => void;
+const API_BASE = import.meta.env.VITE_API_BASE ?? (import.meta.env.DEV ? "http://127.0.0.1:8000/api" : "/api");
 
-class WebSocketPlaceholder {
-  private listeners = new Set<Listener>();
-
-  subscribe(listener: Listener) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+function streamUrl() {
+  if (API_BASE.startsWith("http://") || API_BASE.startsWith("https://")) {
+    return `${API_BASE}/system/stream`;
   }
-
-  emit(event: SystemEvent) {
-    this.listeners.forEach((listener) => listener(event));
-  }
-
-  connect() {
-    return () => undefined;
-  }
+  return `${window.location.origin}${API_BASE}/system/stream`;
 }
 
-export const websocket = new WebSocketPlaceholder();
+export function subscribeSystemEvents(onEvent: (event: SystemEventRecord) => void, onError?: () => void) {
+  const source = new EventSource(streamUrl());
+  source.addEventListener("system_event", (message) => {
+    const payload = JSON.parse((message as MessageEvent<string>).data) as SystemEventRecord;
+    onEvent(payload);
+  });
+  source.onerror = () => {
+    onError?.();
+  };
+
+  return () => source.close();
+}
 

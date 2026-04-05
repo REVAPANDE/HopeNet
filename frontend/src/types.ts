@@ -84,6 +84,7 @@ export type SimulationResponse = {
 export type SystemEventType =
   | "NEW_TASK"
   | "VOLUNTEER_DROPOUT"
+  | "VOLUNTEER_MOVEMENT"
   | "PRIORITY_UPDATE"
   | "SIMULATION_RUN"
   | "ASSIGNMENT_RECOMPUTED";

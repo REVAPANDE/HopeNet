@@ -119,11 +119,12 @@ def list_events(after: datetime | None = None, limit: int = 25) -> list[SystemEv
 
 def _reasoning_points(reason, volunteer: Volunteer, task: Task) -> list[str]:
     priority_bucket = "critical" if task.priority_score >= 85 else "high" if task.priority_score >= 65 else "moderate"
+    skill_gap = max(0.0, 1.0 - reason.skill_match)
     return [
-        f"Closest qualified option within {reason.distance_km:.1f} km",
-        f"Skill match contributed {reason.skill_component:.2f} with {reason.skill_match:.0%} overlap",
-        f"Task urgency is {priority_bucket} and added {reason.priority_component:.2f} to the score",
-        f"Availability and workload balance kept the assignment sustainable",
+        f"Closest available responder at {reason.distance_km:.1f} km (distance +{reason.distance_component:.2f})",
+        f"Urgency was {priority_bucket} and contributed +{reason.priority_component:.2f}",
+        f"Availability contributed +{reason.availability_component:.2f} while workload applied -{reason.workload_component:.2f}",
+        f"Skill overlap is {reason.skill_match:.0%}{'; slight mismatch penalized' if skill_gap > 0.2 else '; good skill alignment'}",
     ]
 
 
@@ -138,7 +139,11 @@ def _alternative_reason(alternative, winner_score: float, volunteer_name: str) -
     if alternative.availability_score < 0.5:
         gaps.append("less remaining capacity")
     gap_text = ", ".join(gaps) if gaps else "slightly lower total match score"
-    return f"{volunteer_name} ranked below the chosen responder due to {gap_text}; score gap {winner_score - alternative.final_score:.2f}."
+    return (
+        f"{volunteer_name} ranked lower due to {gap_text}; "
+        f"score delta {winner_score - alternative.final_score:.2f}, distance {alternative.distance_km:.1f} km, "
+        f"workload penalty {alternative.fairness_penalty:.2f}."
+    )
 
 
 def run_allocation(tasks: list[Task] | None = None, volunteers: list[Volunteer] | None = None) -> AllocationResponse:
@@ -153,6 +158,7 @@ def run_allocation(tasks: list[Task] | None = None, volunteers: list[Volunteer] 
     assignments: list[Assignment] = []
     reasons = []
     unassigned_tasks: list[str] = []
+    raw_runner_up: dict[tuple[str, str], float | None] = {}
 
     for task in prioritized_tasks(tasks):
         scored_candidates = []
@@ -169,7 +175,6 @@ def run_allocation(tasks: list[Task] | None = None, volunteers: list[Volunteer] 
             unassigned_tasks.append(task.id)
             continue
 
-        best_reason.confidence = confidence_score(best_reason.final_score, runner_up)
         explanation = explain_assignment(best_reason, best_volunteer, task)
         assignments.append(
             Assignment(
@@ -180,9 +185,30 @@ def run_allocation(tasks: list[Task] | None = None, volunteers: list[Volunteer] 
             )
         )
         reasons.append(best_reason)
+        raw_runner_up[(best_volunteer.id, task.id)] = runner_up
         best_volunteer.assigned_count += 1
         if best_volunteer.assigned_count >= best_volunteer.capacity:
             candidate_pool.pop(best_volunteer.id, None)
+
+    # Normalize all scores against the strongest assignment score in this run.
+    max_raw_score = max((reason.final_score for reason in reasons), default=1.0)
+    max_raw_score = max(1e-6, max_raw_score)
+
+    def _calibrate(score: float) -> float:
+        normalized = score / max_raw_score
+        return round(min(0.98, max(0.08, 0.08 + normalized * 0.9)), 3)
+
+    for reason in reasons:
+        reason.final_score = _calibrate(reason.final_score)
+        runner_up = raw_runner_up.get((reason.volunteer_id, reason.task_id))
+        normalized_runner_up = None if runner_up is None else _calibrate(max(0.0, runner_up))
+        reason.confidence = confidence_score(reason.final_score, normalized_runner_up)
+
+    reason_lookup = {(reason.volunteer_id, reason.task_id): reason for reason in reasons}
+    for assignment in assignments:
+        normalized_reason = reason_lookup.get((assignment.volunteer_id, assignment.task_id))
+        if normalized_reason is not None:
+            assignment.score = normalized_reason.final_score
 
     metrics = _compute_metrics(assignments, reasons, tasks, volunteers)
     summary = (
@@ -202,14 +228,28 @@ def run_allocation(tasks: list[Task] | None = None, volunteers: list[Volunteer] 
 
 
 def recompute_assignments(request: RecomputeRequest | None = None) -> AllocationResponse:
+    previous_assignments = {
+        assignment.task_id: assignment.volunteer_id for assignment in store.assignments.list()
+    }
     allocation = run_allocation()
+    current_assignments = {
+        assignment.task_id: assignment.volunteer_id for assignment in allocation.assignments
+    }
+    shifted_assignments = sum(
+        1
+        for task_id, volunteer_id in current_assignments.items()
+        if previous_assignments.get(task_id) is not None and previous_assignments[task_id] != volunteer_id
+    )
+    newly_assigned = sum(1 for task_id in current_assignments if task_id not in previous_assignments)
     emit_event(
         SystemEventType.assignment_recomputed,
-        "Assignments recomputed",
+        f"Assignments recomputed ({shifted_assignments} shifts, {newly_assigned} new)",
         {
             "coverage_rate": allocation.metrics.coverage_rate,
             "pending_critical_tasks": allocation.metrics.pending_critical_tasks,
             "trigger": request.reason if request else "manual",
+            "shifted_assignments": shifted_assignments,
+            "newly_assigned": newly_assigned,
         },
     )
     return allocation
@@ -312,6 +352,16 @@ def explain_assignment_detail(request: ExplainRequest) -> AssignmentExplanation:
         if volunteer.status != VolunteerStatus.available and volunteer.id != request.volunteer_id:
             continue
         candidate_reasons.append((volunteer, build_reason(volunteer, task, weights)))
+
+    max_candidate_score = max((reason.final_score for _, reason in candidate_reasons), default=1.0)
+    max_candidate_score = max(1e-6, max_candidate_score)
+
+    def _calibrate(score: float) -> float:
+        normalized = score / max_candidate_score
+        return round(min(0.98, max(0.08, 0.08 + normalized * 0.9)), 3)
+
+    for _, reason in candidate_reasons:
+        reason.final_score = _calibrate(reason.final_score)
 
     candidate_reasons.sort(key=lambda entry: entry[1].final_score, reverse=True)
     selected_entry = next(

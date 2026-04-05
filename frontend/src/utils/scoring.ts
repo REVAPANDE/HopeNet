@@ -23,6 +23,8 @@ export function triggerLabel(triggerReason: string | null) {
       return "New task received";
     case "VOLUNTEER_DROPOUT":
       return "Volunteer dropout";
+    case "VOLUNTEER_MOVEMENT":
+      return "Volunteer movement";
     case "SIMULATION_RUN":
       return "Scenario simulation";
     case "LIVE_SYNC":

@@ -40,8 +40,9 @@ def availability_score(volunteer: Volunteer) -> float:
 
 
 def inverse_distance_score(distance_km: float, cap_km: float = 30.0) -> float:
-    normalized = min(distance_km, cap_km) / cap_km
-    return round(max(0.0, 1 - normalized), 3)
+    # Inverse distance keeps nearby responders strongly favored while preserving score variation.
+    capped = min(distance_km, cap_km)
+    return round(1.0 / (1.0 + capped), 4)
 
 
 def confidence_score(final_score: float, runner_up_score: float | None = None) -> float:
@@ -67,6 +68,7 @@ def build_reason(volunteer: Volunteer, task: Task, weights: PriorityWeights) -> 
     priority_component = weights.priority * priority_weight
     availability_component = weights.availability * availability
     workload_component = weights.workload_penalty * workload_penalty
+    # Raw score is normalized later against the strongest candidate across the full allocation cycle.
     final_score = skill_component + distance_component + priority_component + availability_component - workload_component
 
     return AssignmentReason(
@@ -82,7 +84,7 @@ def build_reason(volunteer: Volunteer, task: Task, weights: PriorityWeights) -> 
         skill_component=round(skill_component, 3),
         availability_component=round(availability_component, 3),
         workload_component=round(workload_component, 3),
-        final_score=round(max(0.0, min(1.0, final_score)), 3),
+        final_score=round(max(0.0, final_score), 4),
         confidence=0.0,
     )
 

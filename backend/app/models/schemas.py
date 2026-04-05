@@ -150,11 +150,11 @@ class BatchPriorityRequest(BaseModel):
 
 
 class PriorityWeights(BaseModel):
-    skill_match: float = 0.35
-    distance: float = 0.2
-    priority: float = 0.25
-    availability: float = 0.15
-    workload_penalty: float = 0.15
+    skill_match: float = 0.2
+    distance: float = 0.4
+    priority: float = 0.3
+    availability: float = 0.2
+    workload_penalty: float = 0.1
 
 
 class PriorityConfig(BaseModel):
@@ -168,12 +168,17 @@ class UpdatePriorityRequest(BaseModel):
 
 
 class RecomputeRequest(BaseModel):
-    reason: Literal["manual", "priority_update", "new_task", "volunteer_dropout"] = "manual"
+    reason: Literal["manual", "priority_update", "new_task", "volunteer_dropout", "volunteer_movement"] = "manual"
+
+
+class VolunteerMovementRequest(BaseModel):
+    location: Coordinates
 
 
 class SystemEventType(str, Enum):
     new_task = "NEW_TASK"
     volunteer_dropout = "VOLUNTEER_DROPOUT"
+    volunteer_movement = "VOLUNTEER_MOVEMENT"
     priority_update = "PRIORITY_UPDATE"
     assignment_recomputed = "ASSIGNMENT_RECOMPUTED"
     simulation_run = "SIMULATION_RUN"

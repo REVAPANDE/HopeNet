@@ -171,10 +171,55 @@ a {
   border-radius: 12px;
 }
 
+.compact-action:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.action-feedback {
+  position: sticky;
+  top: 94px;
+  z-index: 950;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  animation: bannerSlideIn 180ms ease-out;
+}
+
+.action-feedback strong {
+  font-size: 0.88rem;
+}
+
+.action-feedback span {
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.action-feedback.success {
+  background: linear-gradient(135deg, #ecfdf5, #ffffff);
+  border-color: rgba(22, 163, 74, 0.24);
+}
+
+.action-feedback.error {
+  background: linear-gradient(135deg, #fef2f2, #ffffff);
+  border-color: rgba(220, 38, 38, 0.22);
+}
+
 .compact-action.secondary {
   background: linear-gradient(180deg, #f8fafc, #f1f5f9);
   color: var(--text);
   border-color: var(--line);
+}
+
+.compact-action.tertiary {
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  color: var(--muted);
 }
 
 .compact-action:hover {
@@ -1019,6 +1064,39 @@ a {
 
 .legend-swatch.route {
   background: var(--green);
+}
+
+.legend-swatch.heat {
+  background: radial-gradient(circle at center, rgba(220, 38, 38, 0.8), rgba(249, 115, 22, 0.5));
+}
+
+.assignment-route.live-route {
+  animation: routeFlow 1.4s linear infinite;
+}
+
+.assignment-route.simulated-route {
+  opacity: 0.6;
+}
+
+.demand-heat-layer {
+  mix-blend-mode: multiply;
+}
+
+@keyframes routeFlow {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+@keyframes bannerSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .weight-editor {

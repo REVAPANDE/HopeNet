@@ -7,6 +7,7 @@ import { DASHBOARD_QUERY_KEY, EVENTS_QUERY_KEY } from "../system/systemEvents";
 import { getSystemEvents } from "../system/systemAPI";
 import { setAllocationSlice } from "./allocationSlice";
 import { useStore } from "../../store/useStore";
+import { subscribeSystemEvents } from "../../services/websocket";
 import type { PriorityWeights } from "../../types";
 
 export function useDashboardData() {
@@ -47,10 +48,14 @@ export function useDashboardData() {
 export function useRecomputeAllocation() {
   const queryClient = useQueryClient();
   const setRecomputing = useStore((state) => state.setRecomputing);
+  const clearSimulation = useStore((state) => state.clearSimulation);
 
   return useMutation({
     mutationFn: () => recomputeAllocation("manual"),
-    onMutate: () => setRecomputing(true, "ASSIGNMENT_RECOMPUTED"),
+    onMutate: () => {
+      clearSimulation();
+      setRecomputing(true, "ASSIGNMENT_RECOMPUTED");
+    },
     onSuccess: async (allocation) => {
       const state = useStore.getState();
       setAllocationSlice({
@@ -78,10 +83,14 @@ export function useUpdatePriorityWeights() {
   const queryClient = useQueryClient();
   const setRecomputing = useStore((state) => state.setRecomputing);
   const setPriorityConfig = useStore((state) => state.setPriorityConfig);
+  const clearSimulation = useStore((state) => state.clearSimulation);
 
   return useMutation({
     mutationFn: (weights: PriorityWeights) => updatePriorityConfig(weights),
-    onMutate: () => setRecomputing(true, "PRIORITY_UPDATE"),
+    onMutate: () => {
+      clearSimulation();
+      setRecomputing(true, "PRIORITY_UPDATE");
+    },
     onSuccess: async (result) => {
       const state = useStore.getState();
       setPriorityConfig(result.config);
@@ -127,12 +136,27 @@ export function useLiveEventFeed() {
     applyEventRecords(events);
     lastSeenRef.current = events[0].created_at;
     const shouldRefreshDashboard = events.some((event) =>
-      ["ASSIGNMENT_RECOMPUTED", "PRIORITY_UPDATE", "NEW_TASK", "VOLUNTEER_DROPOUT"].includes(event.type)
+      ["ASSIGNMENT_RECOMPUTED", "PRIORITY_UPDATE", "NEW_TASK", "VOLUNTEER_DROPOUT", "VOLUNTEER_MOVEMENT"].includes(event.type)
     );
     if (shouldRefreshDashboard) {
       void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
     }
   }, [applyEventRecords, events, queryClient]);
+
+  useEffect(() => {
+    if (!isLive) return;
+    return subscribeSystemEvents(
+      (event) => {
+        applyEventRecords([event]);
+        if (["ASSIGNMENT_RECOMPUTED", "PRIORITY_UPDATE", "NEW_TASK", "VOLUNTEER_DROPOUT", "VOLUNTEER_MOVEMENT"].includes(event.type)) {
+          void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
+        }
+      },
+      () => {
+        // Polling query remains active as a fallback if the stream disconnects.
+      }
+    );
+  }, [applyEventRecords, isLive, queryClient]);
 
   return query;
 }
