@@ -1,6 +1,7 @@
 # HopeNet
 
 Live demo: [https://hopenet-web-1021853192263.us-central1.run.app](https://hopenet-web-1021853192263.us-central1.run.app)
+Demo video: [https://drive.google.com/file/d/1celVfqDhS_-DW5Z2yLQlKcTsq4bOLnZM/view?usp=drive_link)
 
 HopeNet is a disaster response coordination system for matching volunteers to urgent tasks in real time. It combines assignment scoring, live event updates, explainable AI reasoning, simulation mode, and a map-based operations dashboard designed to feel like a working command center rather than a static prototype.
 
