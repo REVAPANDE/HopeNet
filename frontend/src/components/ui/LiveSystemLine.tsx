@@ -19,7 +19,7 @@ export function LiveSystemLine({ lastUpdated }: { lastUpdated: number | null }) 
         <strong>Live System Active</strong>
       </span>
       <span>
-        Last updated {lastUpdated ? `${formatDistanceToNowStrict(lastUpdated)} ago` : "0s ago"} | Auto-reallocating
+        Last updated {lastUpdated ? `${formatDistanceToNowStrict(lastUpdated)} ago` : "0s ago"}
       </span>
     </div>
   );
