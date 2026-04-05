@@ -1,18 +1,37 @@
 # HopeNet
 
-HopeNet is a full-stack disaster response coordination platform designed for hackathons and production-minded demos. It combines real-time volunteer allocation, what-if simulation, explainable assignment reasoning, fairness-aware workload balancing, and Google Cloud integration points for Firestore, Gemini, and Vertex AI.
+Live demo: [https://hopenet-web-1021853192263.us-central1.run.app](https://hopenet-web-1021853192263.us-central1.run.app)
 
-## Stack
+HopeNet is a disaster response coordination system for matching volunteers to urgent tasks in real time. It combines assignment scoring, live event updates, explainable AI reasoning, simulation mode, and a map-based operations dashboard designed to feel like a working command center rather than a static prototype.
 
-- Frontend: React + TypeScript + Vite + Leaflet
-- Backend: FastAPI + Pydantic
-- Data: Firestore with in-memory fallback for local development
-- AI: Gemini for explanations, Vertex AI for priority scoring
-- Deployment: Cloud Run ready
+## What It Does
 
-## Local Run
+- Recomputes volunteer-to-task assignments with weighted scoring.
+- Streams live system events for recomputes, priority changes, volunteer movement, and simulations.
+- Shows explainable assignment reasoning with alternatives and trade-offs.
+- Visualizes operations on a map with task demand zones, assignment routes, and hover tooltips.
+- Supports Cloud Run deployment with Firestore-backed state.
 
-### One Command on Windows
+## Tech Stack
+
+- Frontend: React, TypeScript, Vite, Leaflet, Framer Motion
+- Backend: FastAPI, Pydantic
+- State: Firestore with in-memory fallback for local development
+- AI: Gemini for explainability, Vertex AI-compatible priority scoring
+- Deployment: Google Cloud Run, Cloud Build
+
+## Key Features
+
+- Real-time dashboard updates via backend event streaming.
+- Recompute and update-priority actions with visible feedback.
+- Dynamic scoring with realistic variation instead of flat scores.
+- Explainable recommendations with alternative candidates.
+- Simulation mode for volunteer dropout and demand spikes.
+- Event-driven volunteer movement and automatic reassignment.
+
+## Local Development
+
+### One-command start on Windows
 
 From the project root:
 
@@ -20,19 +39,17 @@ From the project root:
 .\start-hopenet.ps1 -Install
 ```
 
-Use that the first time to create the Python virtual environment and install frontend/backend dependencies.
-
-After that, start both apps with:
+After dependencies are installed, start the app with:
 
 ```powershell
 .\start-hopenet.ps1
 ```
 
-This opens two PowerShell windows, one for FastAPI and one for Vite.
+This opens FastAPI and Vite in separate PowerShell windows.
 
 ### Backend
 
-```bash
+```powershell
 cd backend
 python -m venv .venv
 .venv\Scripts\activate
@@ -42,119 +59,80 @@ uvicorn app.main:app --reload
 
 ### Frontend
 
-```bash
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-## Environment
+## Environment Variables
+
+Backend:
 
 - `GOOGLE_CLOUD_PROJECT`
 - `FIRESTORE_COLLECTION_PREFIX` optional
 - `GEMINI_API_KEY`
 - `GEMINI_MODEL` optional, defaults to `gemini-1.5-flash`
-- `GEMINI_USE_VERTEXAI` set to `true` if you want Gemini through Vertex AI auth
+- `GEMINI_USE_VERTEXAI` set to `true` for Gemini on Vertex AI
 - `VERTEX_PROJECT_ID`
 - `VERTEX_LOCATION` optional, defaults to `us-central1`
-- `VERTEX_ENDPOINT_ID` optional for deployed custom endpoint
-- `VERTEX_USE_LOCAL_MODEL` set to `true` to use the trained local demo model before deploying an endpoint
+- `VERTEX_ENDPOINT_ID` optional for deployed prediction endpoint
+- `VERTEX_USE_LOCAL_MODEL` set to `true` to use the local demo model
 
-The backend runs fully in fallback mode if these are not set.
+Frontend:
 
-Frontend environment:
+- `VITE_API_BASE` defaults to `/api` in production and `http://127.0.0.1:8000/api` in local development
 
-- `VITE_API_BASE` defaults to `http://127.0.0.1:8000/api`
+## Deployment
 
-## Gemini Explainability
-
-The explainability endpoint is already wired in [gemini.py](C:/Users/RAMBO/Downloads/my_folder/backend/app/services/gemini.py). You can use either:
-
-- Gemini Developer API: set `GEMINI_API_KEY`
-- Gemini on Vertex AI: set `GEMINI_USE_VERTEXAI=true`, `VERTEX_PROJECT_ID`, and `VERTEX_LOCATION`
-
-When the user clicks "Why this assignment?" in the frontend, the app calls `/api/allocation/explain` and Gemini returns a natural-language explanation using proximity, skill match, urgency, and fairness context.
-
-## Vertex AI Priority Scoring
-
-The scoring service in [vertex.py](C:/Users/RAMBO/Downloads/my_folder/backend/app/services/vertex.py) now supports three modes:
-
-- Vertex AI online prediction endpoint if `VERTEX_ENDPOINT_ID` is configured
-- Local trained model if `VERTEX_USE_LOCAL_MODEL=true`
-- Heuristic fallback if neither is available
-
-### Train the demo model locally
-
-```bash
-cd backend
-.venv\Scripts\activate
-python ml\train_priority_model.py
-```
-
-That trains on [priority_training_data.csv](C:/Users/RAMBO/Downloads/my_folder/backend/ml/data/priority_training_data.csv) and saves a model to `backend/ml/artifacts/priority_model.joblib`.
-
-### Use the local trained model
-
-Set this in [backend/.env](C:/Users/RAMBO/Downloads/my_folder/backend/.env):
-
-```env
-VERTEX_USE_LOCAL_MODEL=true
-```
-
-### Move it to Vertex AI
-
-Recommended production flow:
-
-1. Train your regression model on disaster task history using `task_type`, `people_affected`, `severity`, and `deadline_minutes`.
-2. Upload the trained model artifact to Vertex AI Model Registry.
-3. Deploy it to a Vertex AI endpoint using the prebuilt scikit-learn prediction container.
-4. Put the endpoint ID into `VERTEX_ENDPOINT_ID`.
-
-You can do that with:
-
-```powershell
-.\scripts\deploy-vertex-priority.ps1 -ProjectId YOUR_PROJECT_ID
-```
-
-After deployment, set these in [backend/.env](C:/Users/RAMBO/Downloads/my_folder/backend/.env):
-
-```env
-VERTEX_PROJECT_ID=YOUR_PROJECT_ID
-VERTEX_LOCATION=us-central1
-VERTEX_ENDPOINT_ID=YOUR_VERTEX_ENDPOINT_ID
-GEMINI_USE_VERTEXAI=true
-```
-
-Official references:
-
-- [Vertex AI training methods](https://cloud.google.com/vertex-ai/docs/start/training-methods)
-- [Vertex AI Gemini SDK overview](https://cloud.google.com/vertex-ai/docs/generative-ai/multimodal/sdk-for-gemini/gemini-sdk-overview-reference)
-
-## Cloud Run Deployment
-
-### Enable APIs
+### Enable Google Cloud APIs
 
 ```powershell
 .\scripts\enable-gcp-services.ps1 -ProjectId YOUR_PROJECT_ID
 ```
 
-### Backend
+### Deploy Backend
 
-```bash
+```powershell
 .\scripts\deploy-backend.ps1 -ProjectId YOUR_PROJECT_ID
 ```
 
-### Frontend
+### Deploy Frontend
 
-```bash
+```powershell
 .\scripts\deploy-frontend.ps1 -ProjectId YOUR_PROJECT_ID -ApiBase https://YOUR_BACKEND_URL/api
 ```
 
-## Core Features
+## How the Scoring Works
 
-- Adaptive volunteer allocation using urgency queues and dynamic re-matching
-- Fairness-aware workload balancing to avoid overloading repeat responders
-- What-if simulator for volunteer dropout and demand spikes
-- Explainable assignments using assignment factors and Gemini enhancement
-- Vertex AI priority hook with deterministic fallback scoring
-- Map-driven operational dashboard
+The matching system blends distance, priority, availability, workload, and skill fit into a weighted score, then normalizes results so assignments show realistic variation. The app also exposes detailed reasoning and alternatives so the result reads like an operational recommendation rather than a black box.
+
+## Explainability
+
+Clicking a reasoning action in the dashboard calls the explainability endpoint and returns:
+
+- Why the volunteer was chosen.
+- Which factors helped or hurt the score.
+- Other candidates that were considered and why they lost.
+
+## Cloud Run Notes
+
+Cloud Run is stateless, so HopeNet uses Firestore-backed collections for tasks, volunteers, assignments, events, and priority configuration. If Firestore is unavailable, the backend falls back to in-memory storage for local runs.
+
+## Demo Flow
+
+1. Open the live demo link.
+2. Click Recompute and watch the assignment feed update.
+3. Update priorities and observe changed scores.
+4. Open simulation mode and compare baseline vs scenario response.
+5. Inspect the reasoning panel for alternatives and trade-offs.
+
+## Repository Layout
+
+- `backend/` FastAPI service, Firestore integration, matching logic, and AI hooks.
+- `frontend/` React dashboard, live event feed, map, and simulation UI.
+- `scripts/` PowerShell deployment scripts for backend, frontend, and Google Cloud setup.
+
+## Status
+
+HopeNet is optimized for hackathon-style demos, judge walkthroughs, and Cloud Run deployment while still being usable as a working coordination prototype.
