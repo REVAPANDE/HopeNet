@@ -132,7 +132,3 @@ Cloud Run is stateless, so HopeNet uses Firestore-backed collections for tasks, 
 - `backend/` FastAPI service, Firestore integration, matching logic, and AI hooks.
 - `frontend/` React dashboard, live event feed, map, and simulation UI.
 - `scripts/` PowerShell deployment scripts for backend, frontend, and Google Cloud setup.
-
-## Status
-
-HopeNet is optimized for hackathon-style demos, judge walkthroughs, and Cloud Run deployment while still being usable as a working coordination prototype.
