@@ -1,6 +1,5 @@
 # HopeNet
 
-Live demo: [HopeNet App](https://hopenet-web-1021853192263.us-central1.run.app)
 
 Demo video: [Watch Demo](https://drive.google.com/file/d/1celVfqDhS_-DW5Z2yLQlKcTsq4bOLnZM/view?usp=drive_link)
 
